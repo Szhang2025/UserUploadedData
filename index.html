@@ -371,7 +371,7 @@
             font-size: 12px;
             color: #666;
             border: 1px solid #e0e0e0;
-            max-height: 150px;
+            max-height: 200px;
             overflow-y: auto;
         }
         .debug-info .label {
@@ -491,6 +491,9 @@
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz8m6FGOZa_3gFJo7EQlh-ZSR1BF7Ki8R3OOadtpZEY1TxQKqNU2oQkkOgkZVEMtIalIg/exec';
         // ============================================================
 
+        // Use a CORS proxy to bypass GitHub Pages restrictions
+        const PROXY_URL = 'https://api.allorigins.win/raw?url=';
+
         let selectedFile = null;
         let currentUserEmail = 'anonymous_user';
         let currentTab = 'mySheets';
@@ -534,71 +537,52 @@
             debugStatus.textContent = message;
         }
 
-        // ===== JSONP HELPER =====
-        function callAppsScript(action, payload = {}) {
-            return new Promise((resolve, reject) => {
-                const callbackName = 'jsonp_callback_' + (++callbackCounter);
-                const params = new URLSearchParams({
-                    action: action,
-                    callback: callbackName,
-                    ...payload
-                });
+        // ===== CALL APPS SCRIPT VIA CORS PROXY =====
+        async function callAppsScript(action, payload = {}) {
+            const params = new URLSearchParams({
+                action: action,
+                ...payload
+            });
+            
+            const url = SCRIPT_URL + '?' + params.toString();
+            const proxyUrl = PROXY_URL + encodeURIComponent(url);
+            
+            console.log('📤 Calling via proxy:', proxyUrl);
+            showConnectionStatus('waiting', '⏳ Connecting...');
+            debugResponse.textContent = '⏳ Waiting...';
+            
+            try {
+                const response = await fetch(proxyUrl);
+                if (!response.ok) {
+                    throw new Error('HTTP error: ' + response.status);
+                }
+                const text = await response.text();
                 
-                const url = SCRIPT_URL + '?' + params.toString();
-                console.log('📤 Calling:', url);
-                showConnectionStatus('waiting', '⏳ Connecting...');
-                debugResponse.textContent = '⏳ Waiting...';
-                
-                const script = document.createElement('script');
-                script.src = url;
-                
-                let isResolved = false;
-                
-                function cleanup() {
-                    delete window[callbackName];
-                    if (script.parentNode) {
-                        script.parentNode.removeChild(script);
+                // Try to parse as JSON
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    // Try to extract JSONP
+                    const jsonMatch = text.match(/^[^(]*\(([\s\S]*)\);?$/);
+                    if (jsonMatch) {
+                        data = JSON.parse(jsonMatch[1]);
+                    } else {
+                        throw new Error('Could not parse response');
                     }
                 }
                 
-                window[callbackName] = function(data) {
-                    if (isResolved) return;
-                    isResolved = true;
-                    cleanup();
-                    console.log('📥 Response:', data);
-                    debugResponse.textContent = JSON.stringify(data, null, 2);
-                    showConnectionStatus('success', '✅ Connected to Stat353DataCollectedFromUsers');
-                    resolve(data);
-                };
+                console.log('📥 Response:', data);
+                debugResponse.textContent = JSON.stringify(data, null, 2);
+                showConnectionStatus('success', '✅ Connected to Stat353DataCollectedFromUsers');
+                return data;
                 
-                script.onerror = function() {
-                    if (isResolved) return;
-                    isResolved = true;
-                    cleanup();
-                    console.error('❌ Script load failed');
-                    debugResponse.textContent = '❌ Failed to load script';
-                    showConnectionStatus('error', '❌ Connection failed. Please refresh and try again.');
-                    reject(new Error('Failed to load script.'));
-                };
-                
-                const timeoutId = setTimeout(() => {
-                    if (isResolved) return;
-                    isResolved = true;
-                    cleanup();
-                    console.error('⏰ Timeout');
-                    debugResponse.textContent = '⏰ Timeout';
-                    showConnectionStatus('error', '⏰ Request timed out.');
-                    reject(new Error('Timeout'));
-                }, 30000);
-                
-                const originalCallback = window[callbackName];
-                window[callbackName] = function(data) {
-                    clearTimeout(timeoutId);
-                    originalCallback(data);
-                };
-                
-                document.body.appendChild(script);
-            });
+            } catch (error) {
+                console.error('❌ Request failed:', error);
+                debugResponse.textContent = '❌ Error: ' + error.message;
+                showConnectionStatus('error', '❌ Connection failed: ' + error.message);
+                throw error;
+            }
         }
 
         // ===== CHECK SETUP =====
