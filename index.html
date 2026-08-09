@@ -338,18 +338,6 @@
             border: 1px solid #ddd;
             font-size: 12px;
         }
-        .warning-banner {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 8px;
-            padding: 12px 15px;
-            margin-bottom: 20px;
-            font-size: 13px;
-            color: #856404;
-        }
-        .warning-banner strong {
-            color: #664d03;
-        }
         @media (max-width: 600px) {
             .container {
                 padding: 20px;
@@ -374,11 +362,6 @@
     <div class="container">
         <h1>📤 Shared Data Upload</h1>
         <p class="subtitle">All users upload to the SAME spreadsheet - each user has their own sheet (tab)</p>
-
-        <!-- ⚠️ WARNING: Replace with your actual Web App URL -->
-        <div class="warning-banner">
-            ⚠️ <strong>Configuration Required:</strong> Edit the <code>SCRIPT_URL</code> in the JavaScript below to point to your Google Apps Script Web App URL.
-        </div>
 
         <div class="user-info" id="userInfo">
             <div>
@@ -456,7 +439,7 @@
 
     <script>
         // ============================================================
-        // 🔥 IMPORTANT: Replace this with your Google Apps Script URL
+        // ✅ YOUR WEB APP URL - ALREADY INSERTED
         // ============================================================
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz8m6FGOZa_3gFJo7EQlh-ZSR1BF7Ki8R3OOadtpZEY1TxQKqNU2oQkkOgkZVEMtIalIg/exec';
         // ============================================================
@@ -799,6 +782,7 @@
         console.log('📤 Shared Upload System Ready!');
         console.log('📊 All users share the SAME spreadsheet');
         console.log('📋 Each user gets their own sheet (tab)');
+        console.log('🔗 Web App URL: ' + SCRIPT_URL);
     </script>
 </body>
 </html>
