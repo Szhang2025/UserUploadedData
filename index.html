@@ -320,6 +320,25 @@
             background: #ff9800;
             color: white;
         }
+        .debug-info {
+            margin-top: 20px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #666;
+            border: 1px solid #e0e0e0;
+            max-height: 150px;
+            overflow-y: auto;
+            display: none;
+        }
+        .debug-info.show {
+            display: block;
+        }
+        .debug-info .label {
+            font-weight: bold;
+            color: #333;
+        }
         .supported-formats {
             margin-top: 15px;
             padding: 12px;
@@ -430,6 +449,12 @@
             <div id="sheetListContent"></div>
         </div>
 
+        <div class="debug-info" id="debugInfo">
+            <div><span class="label">🔗 Web App URL:</span> <span id="debugUrl"></span></div>
+            <div><span class="label">📡 Status:</span> <span id="debugStatus">Not tested</span></div>
+            <div><span class="label">📝 Last Response:</span> <span id="debugResponse">-</span></div>
+        </div>
+
         <div class="supported-formats">
             Supported formats:
             <span>CSV</span>
@@ -439,7 +464,7 @@
 
     <script>
         // ============================================================
-        // YOUR WEB APP URL - UPDATE THIS IF NEEDED
+        // YOUR WEB APP URL
         // ============================================================
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz8m6FGOZa_3gFJo7EQlh-ZSR1BF7Ki8R3OOadtpZEY1TxQKqNU2oQkkOgkZVEMtIalIg/exec';
         // ============================================================
@@ -475,8 +500,16 @@
         const refreshSheetsBtn = document.getElementById('refreshSheetsBtn');
         const mySheetsTab = document.getElementById('mySheetsTab');
         const allSheetsTab = document.getElementById('allSheetsTab');
+        const debugInfo = document.getElementById('debugInfo');
+        const debugUrl = document.getElementById('debugUrl');
+        const debugStatus = document.getElementById('debugStatus');
+        const debugResponse = document.getElementById('debugResponse');
 
-        // ===== JSONP HELPER (Fixes CORS for GitHub Pages) =====
+        // Show debug info
+        debugInfo.classList.add('show');
+        debugUrl.textContent = SCRIPT_URL;
+
+        // ===== JSONP HELPER =====
         function callAppsScript(action, payload = {}) {
             return new Promise((resolve, reject) => {
                 const callbackName = 'jsonp_callback_' + (++callbackCounter);
@@ -485,40 +518,63 @@
                     callback: callbackName,
                     ...payload
                 });
-
+                
+                const url = SCRIPT_URL + '?' + params.toString();
+                console.log('📤 Calling:', url);
+                debugStatus.textContent = '⏳ Calling...';
+                debugStatus.style.color = '#ff9800';
+                
                 const script = document.createElement('script');
-                script.src = SCRIPT_URL + '?' + params.toString();
-
-                window[callbackName] = function(data) {
+                script.src = url;
+                
+                let isResolved = false;
+                
+                function cleanup() {
                     delete window[callbackName];
                     if (script.parentNode) {
                         script.parentNode.removeChild(script);
                     }
+                }
+                
+                window[callbackName] = function(data) {
+                    if (isResolved) return;
+                    isResolved = true;
+                    cleanup();
+                    console.log('📥 Response:', data);
+                    debugStatus.textContent = '✅ Success';
+                    debugStatus.style.color = '#4caf50';
+                    debugResponse.textContent = JSON.stringify(data, null, 2);
                     resolve(data);
                 };
-
+                
                 script.onerror = function() {
-                    delete window[callbackName];
-                    if (script.parentNode) {
-                        script.parentNode.removeChild(script);
-                    }
-                    reject(new Error('Failed to reach the server. Please check your connection and Web App URL.'));
+                    if (isResolved) return;
+                    isResolved = true;
+                    cleanup();
+                    console.error('❌ Script load failed');
+                    debugStatus.textContent = '❌ Failed to load';
+                    debugStatus.style.color = '#f44336';
+                    debugResponse.textContent = 'Script failed to load. Check your Web App URL and deployment settings.';
+                    reject(new Error('Failed to load script. Check your Web App URL and deployment settings.'));
                 };
-
-                const timeout = setTimeout(() => {
-                    delete window[callbackName];
-                    if (script.parentNode) {
-                        script.parentNode.removeChild(script);
-                    }
-                    reject(new Error('Request timed out. The server might be slow or unavailable.'));
+                
+                const timeoutId = setTimeout(() => {
+                    if (isResolved) return;
+                    isResolved = true;
+                    cleanup();
+                    console.error('⏰ Request timed out');
+                    debugStatus.textContent = '⏰ Timeout';
+                    debugStatus.style.color = '#f44336';
+                    debugResponse.textContent = 'Request timed out after 30 seconds.';
+                    reject(new Error('Request timed out after 30 seconds.'));
                 }, 30000);
-
+                
                 const originalCallback = window[callbackName];
                 window[callbackName] = function(data) {
-                    clearTimeout(timeout);
+                    clearTimeout(timeoutId);
                     originalCallback(data);
                 };
-
+                
                 document.body.appendChild(script);
             });
         }
