@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Upload Data - Shared System</title>
     <style>
-        /* ... (keep all your existing styles) ... */
         * {
             margin: 0;
             padding: 0;
@@ -440,7 +439,7 @@
 
     <script>
         // ============================================================
-        // ✅ YOUR WEB APP URL
+        // YOUR WEB APP URL - UPDATE THIS IF NEEDED
         // ============================================================
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz8m6FGOZa_3gFJo7EQlh-ZSR1BF7Ki8R3OOadtpZEY1TxQKqNU2oQkkOgkZVEMtIalIg/exec';
         // ============================================================
@@ -477,7 +476,7 @@
         const mySheetsTab = document.getElementById('mySheetsTab');
         const allSheetsTab = document.getElementById('allSheetsTab');
 
-        // ===== JSONP HELPER (Fixes CORS) =====
+        // ===== JSONP HELPER (Fixes CORS for GitHub Pages) =====
         function callAppsScript(action, payload = {}) {
             return new Promise((resolve, reject) => {
                 const callbackName = 'jsonp_callback_' + (++callbackCounter);
@@ -486,39 +485,40 @@
                     callback: callbackName,
                     ...payload
                 });
-                
-                // Create script element
+
                 const script = document.createElement('script');
                 script.src = SCRIPT_URL + '?' + params.toString();
-                
-                // Define the callback function
+
                 window[callbackName] = function(data) {
                     delete window[callbackName];
-                    document.body.removeChild(script);
+                    if (script.parentNode) {
+                        script.parentNode.removeChild(script);
+                    }
                     resolve(data);
                 };
-                
-                // Handle errors
+
                 script.onerror = function() {
                     delete window[callbackName];
-                    document.body.removeChild(script);
-                    reject(new Error('Failed to load script. Check your Web App URL and deployment settings.'));
+                    if (script.parentNode) {
+                        script.parentNode.removeChild(script);
+                    }
+                    reject(new Error('Failed to reach the server. Please check your connection and Web App URL.'));
                 };
-                
-                // Add timeout
+
                 const timeout = setTimeout(() => {
                     delete window[callbackName];
-                    document.body.removeChild(script);
-                    reject(new Error('Request timeout. The Web App might be slow or unavailable.'));
+                    if (script.parentNode) {
+                        script.parentNode.removeChild(script);
+                    }
+                    reject(new Error('Request timed out. The server might be slow or unavailable.'));
                 }, 30000);
-                
-                // Override callback to clear timeout
+
                 const originalCallback = window[callbackName];
                 window[callbackName] = function(data) {
                     clearTimeout(timeout);
                     originalCallback(data);
                 };
-                
+
                 document.body.appendChild(script);
             });
         }
