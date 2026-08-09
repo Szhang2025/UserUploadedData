@@ -491,13 +491,12 @@
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz8m6FGOZa_3gFJo7EQlh-ZSR1BF7Ki8R3OOadtpZEY1TxQKqNU2oQkkOgkZVEMtIalIg/exec';
         // ============================================================
 
-        // Use a CORS proxy to bypass GitHub Pages restrictions
-        const PROXY_URL = 'https://api.allorigins.win/raw?url=';
+        // Using a different CORS proxy that works reliably
+        const PROXY_URL = 'https://corsproxy.io/?';
 
         let selectedFile = null;
         let currentUserEmail = 'anonymous_user';
         let currentTab = 'mySheets';
-        let callbackCounter = 0;
 
         // DOM Elements
         const connectionStatus = document.getElementById('connectionStatus');
@@ -539,24 +538,33 @@
 
         // ===== CALL APPS SCRIPT VIA CORS PROXY =====
         async function callAppsScript(action, payload = {}) {
+            // Build the URL with parameters
             const params = new URLSearchParams({
                 action: action,
                 ...payload
             });
             
-            const url = SCRIPT_URL + '?' + params.toString();
-            const proxyUrl = PROXY_URL + encodeURIComponent(url);
+            const targetUrl = SCRIPT_URL + '?' + params.toString();
+            const proxyUrl = PROXY_URL + encodeURIComponent(targetUrl);
             
             console.log('📤 Calling via proxy:', proxyUrl);
             showConnectionStatus('waiting', '⏳ Connecting...');
-            debugResponse.textContent = '⏳ Waiting...';
+            debugResponse.textContent = '⏳ Waiting for response...';
             
             try {
-                const response = await fetch(proxyUrl);
+                const response = await fetch(proxyUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
                 if (!response.ok) {
-                    throw new Error('HTTP error: ' + response.status);
+                    throw new Error('HTTP error! status: ' + response.status);
                 }
+                
                 const text = await response.text();
+                console.log('📥 Raw response:', text);
                 
                 // Try to parse as JSON
                 let data;
@@ -566,13 +574,17 @@
                     // Try to extract JSONP
                     const jsonMatch = text.match(/^[^(]*\(([\s\S]*)\);?$/);
                     if (jsonMatch) {
-                        data = JSON.parse(jsonMatch[1]);
+                        try {
+                            data = JSON.parse(jsonMatch[1]);
+                        } catch (e2) {
+                            throw new Error('Could not parse response as JSON');
+                        }
                     } else {
                         throw new Error('Could not parse response');
                     }
                 }
                 
-                console.log('📥 Response:', data);
+                console.log('📥 Parsed data:', data);
                 debugResponse.textContent = JSON.stringify(data, null, 2);
                 showConnectionStatus('success', '✅ Connected to Stat353DataCollectedFromUsers');
                 return data;
