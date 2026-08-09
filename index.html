@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Upload Data - Shared System</title>
     <style>
+        /* ... (keep all your existing styles) ... */
         * {
             margin: 0;
             padding: 0;
@@ -439,7 +440,7 @@
 
     <script>
         // ============================================================
-        // ✅ YOUR WEB APP URL - ALREADY INSERTED
+        // ✅ YOUR WEB APP URL
         // ============================================================
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz8m6FGOZa_3gFJo7EQlh-ZSR1BF7Ki8R3OOadtpZEY1TxQKqNU2oQkkOgkZVEMtIalIg/exec';
         // ============================================================
@@ -448,6 +449,7 @@
         let selectedFile = null;
         let currentUserEmail = 'anonymous_user';
         let currentTab = 'mySheets';
+        let callbackCounter = 0;
 
         // ===== DOM ELEMENTS =====
         const uploadArea = document.getElementById('uploadArea');
@@ -475,24 +477,50 @@
         const mySheetsTab = document.getElementById('mySheetsTab');
         const allSheetsTab = document.getElementById('allSheetsTab');
 
-        // ===== HELPER: Call Apps Script via fetch =====
-        async function callAppsScript(action, payload = {}) {
-            const params = new URLSearchParams({
-                action: action,
-                ...payload
+        // ===== JSONP HELPER (Fixes CORS) =====
+        function callAppsScript(action, payload = {}) {
+            return new Promise((resolve, reject) => {
+                const callbackName = 'jsonp_callback_' + (++callbackCounter);
+                const params = new URLSearchParams({
+                    action: action,
+                    callback: callbackName,
+                    ...payload
+                });
+                
+                // Create script element
+                const script = document.createElement('script');
+                script.src = SCRIPT_URL + '?' + params.toString();
+                
+                // Define the callback function
+                window[callbackName] = function(data) {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    resolve(data);
+                };
+                
+                // Handle errors
+                script.onerror = function() {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    reject(new Error('Failed to load script. Check your Web App URL and deployment settings.'));
+                };
+                
+                // Add timeout
+                const timeout = setTimeout(() => {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    reject(new Error('Request timeout. The Web App might be slow or unavailable.'));
+                }, 30000);
+                
+                // Override callback to clear timeout
+                const originalCallback = window[callbackName];
+                window[callbackName] = function(data) {
+                    clearTimeout(timeout);
+                    originalCallback(data);
+                };
+                
+                document.body.appendChild(script);
             });
-            const url = SCRIPT_URL + '?' + params.toString();
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error('Network error: ' + response.status);
-            }
-            const text = await response.text();
-            // Handle JSONP response
-            const jsonMatch = text.match(/^[^(]*\(([\s\S]*)\);?$/);
-            if (jsonMatch) {
-                return JSON.parse(jsonMatch[1]);
-            }
-            return JSON.parse(text);
         }
 
         // ===== CHECK SETUP =====
@@ -514,7 +542,7 @@
             } catch (error) {
                 userEmail.textContent = 'Error';
                 console.error('Setup check error:', error);
-                showStatus('error', '❌ Error: ' + error.message);
+                showStatus('error', '❌ ' + error.message);
             }
         }
 
@@ -533,6 +561,7 @@
                 }
             } catch (error) {
                 console.error('Error loading sheets:', error);
+                showStatus('error', '❌ Failed to load sheets: ' + error.message);
             }
         }
 
@@ -558,6 +587,7 @@
                 }
             } catch (error) {
                 console.error('Error loading sheets:', error);
+                showStatus('error', '❌ Failed to load sheets: ' + error.message);
             }
         }
 
